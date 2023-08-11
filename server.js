@@ -40,7 +40,7 @@ app.post('/api/call', (req, res) => {
     );
 });
 
-app.get('/calls', (req, res) => {
+app.get('/', (req, res) => {
     res.send(`
         <style>
             body {
