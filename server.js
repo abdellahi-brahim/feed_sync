@@ -21,11 +21,31 @@ app.get('/events', (req, res) => {
 });
 
 app.post('/api/call', (req, res) => {
-    const callData = req.body;
+    const components = req.body;
+    const basePath = "https://localhost:8000";
 
-    delete callData["User-Agent"];
+    const formattedComponents = components.map(component => {
+        if (component.name === "picture-component" && component.fields["picture-src"]) {
+            component.fields["picture-src"] = basePath + component.fields["picture-src"];
+        }
+        return { 
+            name: component.name,
+            fields: component.fields 
+        };
+    });
 
-    const existingCallIndex = calls.findIndex(call => call.UID === callData.UID);
+    const uid = components[0].uuid;
+
+    const callData = {
+        UID: uid,
+        Title: (formattedComponents.find(comp => comp.name === "header-component") || {}).fields?.title || "No Title",
+        Path: basePath,
+        Author: "Unknown",
+        Description: (formattedComponents.find(comp => comp.name === "header-component") || {}).fields?.subtitle || "No Description",
+        formattedComponents: formattedComponents
+    };
+
+    const existingCallIndex = calls.findIndex(call => call.UID === uid);
 
     if (existingCallIndex !== -1) {
         calls[existingCallIndex] = callData;
@@ -47,48 +67,94 @@ app.get('/', (req, res) => {
                 font-family: Arial, sans-serif;
                 background-color: #f4f4f4;
                 padding: 20px;
+                max-width: 1600px; /* increased to accommodate two news articles side by side */
+                margin: auto;
             }
-            h1 {
-                color: #333;
+            #feed {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 20px;
             }
-            .feed {
-                background: #fff;
+            .entry {
+                flex: 1 1 calc(50% - 10px); /* take up half the space minus half the gap */
+                background-color: #fff;
                 padding: 20px;
                 border-radius: 5px;
                 box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                animation: popIn 0.4s forwards;
             }
-            .entry {
-                border-bottom: 1px solid #eee;
-                padding: 15px 0;
+            @keyframes popIn {
+                from {
+                    transform: scale(0.96);
+                    opacity: 0.6;
+                }
+                to {
+                    transform: scale(1);
+                    opacity: 1;
+                }
             }
-            .entry:last-child {
-                border-bottom: none;
+            h1 {
+                color: #333;
+                text-align: center;
+                margin-bottom: 20px;
             }
-            .title {
-                font-weight: bold;
-                margin-bottom: 10px;
+            h2 {
+                margin-top: 20px;
+            }
+            img {
+                max-width: 100%;
+                border-radius: 5px;
+                margin: 20px 0;
+            }
+            p {
+                line-height: 1.6;
+            }
+            /* Temporary highlight effect */
+            .highlight {
+                border: 3px solid #FFD700; /* golden color */
+                animation: highlightFade 1.5s forwards;
+            }
+            @keyframes highlightFade {
+                to {
+                    border-color: transparent;
+                }
             }
         </style>
 
-        <h1>Roxen Article Feeds</h1>
-        <div class="feed" id="feed"></div>
+        <div id="feed"></div>
 
         <script>
             const feed = document.getElementById('feed');
-
-            // Create an EventSource connected to our /events endpoint
             const eventSource = new EventSource('/events');
 
             eventSource.onmessage = function(event) {
                 const calls = JSON.parse(event.data);
                 feed.innerHTML = calls.map(call => \`
                     <div class="entry">
-                        <div class="title">\${call.Title}</div>
-                        <div><strong>Path:</strong> \${call.Path}</div>
-                        <div><strong>Author:</strong> \${call.Author}</div>
-                        <div><strong>Description:</strong> \${call.Description}</div>
+                        <h1>\${call.Title}</h1>
+                        <h2>\${call.Description}</h2>
+                        \${call.formattedComponents.map(component => {
+                            if (component.name === "picture-component") {
+                                return \`
+                                    <img src="\${component.fields['picture-src']}" alt="Article Image">
+                                    <h3>\${component.fields.title}</h3>
+                                    <h4>\${component.fields.subtitle}</h4>
+                                    <p>\${component.fields.text}</p>
+                                \`;
+                            }
+                            return '';
+                        }).join('')}
                     </div>
                 \`).join('');
+                
+                // Apply the highlight effect to all entries, indicating an update.
+                document.querySelectorAll('.entry').forEach(entry => {
+                    entry.classList.add('highlight');
+                    // Remove the highlight class after 1.5 seconds.
+                    setTimeout(() => {
+                        entry.classList.remove('highlight');
+                    }, 1500);
+                });
             };
         </script>
     `);
