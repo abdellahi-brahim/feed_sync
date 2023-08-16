@@ -20,6 +20,7 @@ app.get('/events', (req, res) => {
     });
 });
 
+
 app.post('/api/call', (req, res) => {
     const components = req.body;
     const basePath = "https://localhost:8000";
@@ -119,6 +120,17 @@ app.get('/', (req, res) => {
                     border-color: transparent;
                 }
             }
+            .slideIn {
+                animation: slideIn 0.4s forwards;
+            }
+            @keyframes slideIn {
+                from {
+                    transform: translateY(-100%);
+                }
+                to {
+                    transform: translateY(0);
+                }
+            }
         </style>
 
         <div id="feed"></div>
@@ -126,11 +138,24 @@ app.get('/', (req, res) => {
         <script>
             const feed = document.getElementById('feed');
             const eventSource = new EventSource('/events');
+            let localCalls = [];
 
             eventSource.onmessage = function(event) {
-                const calls = JSON.parse(event.data);
-                feed.innerHTML = calls.map(call => \`
-                    <div class="entry">
+                const newCalls = JSON.parse(event.data);
+                localCalls = [...newCalls];
+
+                localCalls.forEach(call => {
+                    let entry = feed.querySelector(\`.entry[data-uid="\${call.UID}"]\`);
+
+                    // If the call doesn't exist, create it and slide it in from the top.
+                    if (!entry) {
+                        entry = document.createElement('div');
+                        entry.className = 'entry slideIn';
+                        entry.dataset.uid = call.UID;
+                        feed.insertBefore(entry, feed.firstChild); // Add the new entry at the beginning.
+                    }
+
+                    entry.innerHTML = \`
                         <h1>\${call.Title}</h1>
                         <h2>\${call.Description}</h2>
                         \${call.formattedComponents.map(component => {
@@ -144,15 +169,13 @@ app.get('/', (req, res) => {
                             }
                             return '';
                         }).join('')}
-                    </div>
-                \`).join('');
-                
-                // Apply the highlight effect to all entries, indicating an update.
-                document.querySelectorAll('.entry').forEach(entry => {
+                    \`;
+
+                    // Apply the highlight effect, indicating an update.
                     entry.classList.add('highlight');
-                    // Remove the highlight class after 1.5 seconds.
                     setTimeout(() => {
                         entry.classList.remove('highlight');
+                        entry.classList.remove('slideIn'); // Remove slideIn class after animation completes
                     }, 1500);
                 });
             };
